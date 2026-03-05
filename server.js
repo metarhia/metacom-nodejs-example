@@ -7,7 +7,7 @@ const { Static } = require('./lib/static.js');
 const { load } = require('./lib/loader.js');
 
 const HOST = '127.0.0.1';
-const PORT = 8000
+const PORT = 8000;
 const appPath = process.cwd();
 
 const main = async () => {
