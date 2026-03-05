@@ -320,10 +320,10 @@
   </div>
 </div>
 
-<script>
-  let ws = null;
-  let callId = 0;
-  const calls = new Map();
+<script type="module">
+  import { Metacom } from './metacom.js';
+
+  let metacom = null;
   let currentMethod = 'auth.1/signIn';
 
   const dot = document.getElementById('dot');
@@ -348,57 +348,50 @@
   const connect = () => {
     const host = document.getElementById('ws-url').value.trim();
     const url = `ws://${host}`;
-    if (ws) { ws.close(); ws = null; }
+
+    if (metacom) {
+      metacom.close();
+      metacom = null;
+    }
 
     appendLog('sys', `Connecting to ${url}…`);
-    ws = new WebSocket(url);
+    metacom = Metacom.create(url);
 
-    ws.onopen = () => {
+    metacom.on('open', async () => {
       dot.classList.add('connected');
       document.getElementById('btn-connect').textContent = 'Disconnect';
       appendLog('sys', 'Connected');
-    };
+      try {
+        await metacom.load('auth.1', 'counter.1');
+        appendLog('sys', 'API loaded: auth.1, counter.1');
+      } catch (err) {
+        appendLog('err', `Failed to load API: ${err.message}`);
+      }
+    });
 
-    ws.onclose = () => {
+    metacom.on('close', () => {
       dot.classList.remove('connected');
       document.getElementById('btn-connect').textContent = 'Connect';
       appendLog('sys', 'Disconnected');
-      ws = null;
-    };
+    });
 
-    ws.onerror = (error) => appendLog('err', `WebSocket error: ${error.message ?? 'unknown'}`);
-
-    ws.onmessage = (event) => {
-      appendLog('in', event.data);
-      try {
-        const packet = JSON.parse(event.data);
-        const resolve = calls.get(packet.id);
-        if (resolve) {
-          calls.delete(packet.id);
-          resolve(packet);
-        }
-      } catch {}
-    };
+    metacom.on('error', (err) => {
+      appendLog('err', `WebSocket error: ${err?.message ?? 'unknown'}`);
+    });
   };
 
-  const rpc = (method, args) => new Promise((resolve, reject) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      reject(new Error('Not connected'));
-      return;
+  const rpc = async (method, args) => {
+    if (!metacom || !metacom.connected) throw new Error('Not connected');
+    const [unitName, methodName] = method.split('/');
+    const unit = metacom.api[unitName];
+    if (!unit || typeof unit[methodName] !== 'function') {
+      throw new Error(`Method ${method} not available (API not loaded)`);
     }
-    const id = String(++callId);
-    const packet = { type: 'call', id, method, args };
-    const raw = JSON.stringify(packet);
-    calls.set(id, resolve);
-    appendLog('out', raw);
-    ws.send(raw);
-    setTimeout(() => {
-      if (calls.has(id)) {
-        calls.delete(id);
-        reject(new Error('Timeout'));
-      }
-    }, 10000);
-  });
+    appendLog('out', JSON.stringify({ type: 'call', method, args }));
+    const res = await unit[methodName](args);
+    appendLog('in', JSON.stringify({ type: 'callback', result: res }));
+    return res;
+  };
 
   for (const btn of document.querySelectorAll('.method-btn')) {
     btn.addEventListener('click', () => {
@@ -423,14 +416,9 @@
       return;
     }
     try {
-      const packet = await rpc(currentMethod, args);
-      if (packet.error) {
-        result.className = 'result-err';
-        result.textContent = JSON.stringify(packet.error, null, 2);
-      } else {
-        result.className = 'result-ok';
-        result.textContent = JSON.stringify(packet.result, null, 2);
-      }
+      const res = await rpc(currentMethod, args);
+      result.className = 'result-ok';
+      result.textContent = JSON.stringify(res, null, 2);
     } catch (error) {
       result.className = 'result-err';
       result.textContent = error.message;
@@ -438,8 +426,9 @@
   });
 
   document.getElementById('btn-connect').addEventListener('click', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
+    if (metacom && metacom.connected) {
+      metacom.close();
+      metacom = null;
     } else {
       connect();
     }
