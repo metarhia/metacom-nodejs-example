@@ -1,0 +1,16 @@
+{
+  "name": "metacom-nodejs-example",
+  "version": "1.0.0",
+  "description": "Pure Node.js server with Metacom RPC protocol",
+  "license": "MIT",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "metacom": "^3.2.6"
+  }
+}
