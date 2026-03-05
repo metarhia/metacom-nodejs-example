@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metacom Node.js Example</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2d3148;
+      --accent: #6c8fff;
+      --accent2: #50fa7b;
+      --warn: #ffb86c;
+      --err: #ff5555;
+      --text: #e2e4f0;
+      --muted: #6b7280;
+      --radius: 8px;
+      --font: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font), sans-serif;
+      font-size: 14px;
+      height: 100vh;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 { font-size: 16px; font-weight: 600; color: var(--accent); }
+    header .sub { color: var(--muted); font-size: 12px; }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--err);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .dot.connected { background: var(--accent2); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: calc(100vh - 57px);
+      overflow: hidden;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .method-btn {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font);
+      font-size: 13px;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .method-btn:hover { border-color: var(--accent); background: #1e2238; }
+    .method-btn .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #283060;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .method-btn .name { flex: 1; }
+
+    .main {
+      display: grid;
+      grid-template-rows: 1fr 200px;
+      overflow: hidden;
+    }
+
+    .editor-area {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .pane:first-child { border-right: 1px solid var(--border); }
+
+    .pane-header {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    textarea, pre {
+      flex: 1;
+      background: var(--surface);
+      border: none;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 16px;
+      resize: none;
+      outline: none;
+      overflow: auto;
+      line-height: 1.6;
+    }
+
+    pre { white-space: pre-wrap; word-break: break-all; }
+    .result-ok { color: var(--accent2); }
+    .result-err { color: var(--err); }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 4px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-family: var(--font);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: rgba(108, 143, 255, 0.15); }
+    .btn.primary { background: var(--accent); color: #0f1117; font-weight: 600; }
+    .btn.primary:hover { background: #8aaeff; }
+
+    .log-area {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-header {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .log-entry { display: flex; gap: 12px; }
+    .log-time { color: var(--muted); flex-shrink: 0; }
+    .log-dir-out { color: var(--accent); }
+    .log-dir-in  { color: var(--accent2); }
+    .log-dir-err { color: var(--err); }
+    .log-dir-sys { color: var(--warn); }
+    .log-msg { word-break: break-all; }
+
+    .conn-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    #ws-url {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      width: 200px;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="dot" id="dot"></div>
+  <h1>Metacom RPC Console</h1>
+  <span class="sub">Node.js example</span>
+  <div style="margin-left: auto;" class="toolbar">
+    <div class="conn-bar">
+      <span style="color:var(--muted);font-size:11px;">ws://</span>
+      <input id="ws-url" value="127.0.0.1:8000" spellcheck="false">
+    </div>
+    <button class="btn primary" id="btn-connect">Connect</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div>
+      <div class="section-title">auth.1</div>
+      <button class="method-btn" data-method="auth.1/signIn"
+        data-args='{"login":"marcus","password":"marcus"}'>
+        <span class="badge">PUB</span><span class="name">signIn</span>
+      </button>
+      <button class="method-btn" data-method="auth.1/signOut" data-args='{}'>
+        <span class="badge">PUB</span><span class="name">signOut</span>
+      </button>
+      <button class="method-btn" data-method="auth.1/status" data-args='{}'>
+        <span class="badge">PUB</span><span class="name">status</span>
+      </button>
+      <button class="method-btn" data-method="auth.1/register"
+        data-args='{"login":"newuser","password":"pass1234"}'>
+        <span class="badge">PUB</span><span class="name">register</span>
+      </button>
+    </div>
+    <div>
+      <div class="section-title">counter.1</div>
+      <button class="method-btn" data-method="counter.1/increment"
+        data-args='{"value":1}'>
+        <span class="badge">PUB</span><span class="name">increment</span>
+      </button>
+      <button class="method-btn" data-method="counter.1/decrement"
+        data-args='{"value":1}'>
+        <span class="badge">PUB</span><span class="name">decrement</span>
+      </button>
+      <button class="method-btn" data-method="counter.1/add"
+        data-args='{"a":3,"b":7}'>
+        <span class="badge">PUB</span><span class="name">add</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="editor-area">
+      <div class="pane">
+        <div class="pane-header">
+          <span>Request</span>
+          <div class="toolbar">
+            <span id="method-label" style="color:var(--accent);"></span>
+            <button class="btn primary" id="btn-send">Send ↵</button>
+          </div>
+        </div>
+        <textarea id="args" spellcheck="false">{
+  "login": "marcus",
+  "password": "marcus"
+}</textarea>
+      </div>
+      <div class="pane">
+        <div class="pane-header">
+          <span>Response</span>
+          <div class="toolbar">
+            <button class="btn" id="btn-clear-res">Clear</button>
+          </div>
+        </div>
+        <pre id="result"></pre>
+      </div>
+    </div>
+
+    <div class="log-area">
+      <div class="log-header">
+        <span>WebSocket Log</span>
+        <button class="btn" id="btn-clear-log">Clear</button>
+      </div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let ws = null;
+  let callId = 0;
+  const calls = new Map();
+  let currentMethod = 'auth.1/signIn';
+
+  const dot = document.getElementById('dot');
+  const log = document.getElementById('log');
+  const result = document.getElementById('result');
+  const argsInput = document.getElementById('args');
+  const methodLabel = document.getElementById('method-label');
+
+  const ts = () => new Date().toTimeString().slice(0, 8);
+
+  const appendLog = (dir, msg) => {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML =
+      `<span class="log-time">${ts()}</span>` +
+      `<span class="log-dir-${dir}">${dir === 'out' ? '→' : dir === 'in' ? '←' : dir === 'err' ? '✗' : '•'}</span>` +
+      `<span class="log-msg">${msg}</span>`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+  };
+
+  const connect = () => {
+    const host = document.getElementById('ws-url').value.trim();
+    const url = `ws://${host}`;
+    if (ws) { ws.close(); ws = null; }
+
+    appendLog('sys', `Connecting to ${url}…`);
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      dot.classList.add('connected');
+      document.getElementById('btn-connect').textContent = 'Disconnect';
+      appendLog('sys', 'Connected');
+    };
+
+    ws.onclose = () => {
+      dot.classList.remove('connected');
+      document.getElementById('btn-connect').textContent = 'Connect';
+      appendLog('sys', 'Disconnected');
+      ws = null;
+    };
+
+    ws.onerror = (error) => appendLog('err', `WebSocket error: ${error.message ?? 'unknown'}`);
+
+    ws.onmessage = (event) => {
+      appendLog('in', event.data);
+      try {
+        const packet = JSON.parse(event.data);
+        const resolve = calls.get(packet.id);
+        if (resolve) {
+          calls.delete(packet.id);
+          resolve(packet);
+        }
+      } catch {}
+    };
+  };
+
+  const rpc = (method, args) => new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      reject(new Error('Not connected'));
+      return;
+    }
+    const id = String(++callId);
+    const packet = { type: 'call', id, method, args };
+    const raw = JSON.stringify(packet);
+    calls.set(id, resolve);
+    appendLog('out', raw);
+    ws.send(raw);
+    setTimeout(() => {
+      if (calls.has(id)) {
+        calls.delete(id);
+        reject(new Error('Timeout'));
+      }
+    }, 10000);
+  });
+
+  for (const btn of document.querySelectorAll('.method-btn')) {
+    btn.addEventListener('click', () => {
+      currentMethod = btn.dataset.method;
+      methodLabel.textContent = currentMethod;
+      try {
+        const args = JSON.parse(btn.dataset.args);
+        argsInput.value = JSON.stringify(args, null, 2);
+      } catch {}
+    });
+  }
+
+  methodLabel.textContent = currentMethod;
+
+  document.getElementById('btn-send').addEventListener('click', async () => {
+    let args;
+    try {
+      args = JSON.parse(argsInput.value || '{}');
+    } catch (error) {
+      result.className = 'result-err';
+      result.textContent = 'JSON parse error: ' + error.message;
+      return;
+    }
+    try {
+      const packet = await rpc(currentMethod, args);
+      if (packet.error) {
+        result.className = 'result-err';
+        result.textContent = JSON.stringify(packet.error, null, 2);
+      } else {
+        result.className = 'result-ok';
+        result.textContent = JSON.stringify(packet.result, null, 2);
+      }
+    } catch (error) {
+      result.className = 'result-err';
+      result.textContent = error.message;
+    }
+  });
+
+  document.getElementById('btn-connect').addEventListener('click', () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    } else {
+      connect();
+    }
+  });
+
+  document.getElementById('btn-clear-log').addEventListener('click', () => {
+    log.innerHTML = '';
+  });
+  document.getElementById('btn-clear-res').addEventListener('click', () => {
+    result.textContent = '';
+    result.className = '';
+  });
+
+  argsInput.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      document.getElementById('btn-send').click();
+    }
+  });
+
+  connect();
+</script>
+</body>
+</html>
